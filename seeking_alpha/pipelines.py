@@ -4,32 +4,65 @@
 #
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
 # See: http://doc.scrapy.org/en/latest/topics/item-pipeline.html
+
+import pickle
+import pandas as pd
+import helpers
+from datetime import date
 import json
-from nltk.tokenize import word_tokenize, wordpunct_tokenize, sent_tokenize
 
 
-class NewsCleaning(object):  # Pipeline to clean news from HTML
+class NewsToPandas(object):  # Pipeline to clean news from HTML
     def open_spider(self, spider):
+        self.spider = spider
         self.ticker = spider.ticker
-        new_file = "/Users/vadzimdabravolski/seeking_alpha/output/"+self.ticker + '_ticker_news.jl'
-        self.file = open(new_file, 'w')
-        spider.log("File created:".format(new_file))
+        self.filepath = "/Users/vadzimdabravolski/seeking_alpha/output/"+self.ticker + '_news_df.p'
+        self.news_df = pd.DataFrame(columns=['content', 'polarity', 'subjectivity', 'datetime', 'ticker'])
 
     def process_item(self, item, spider):
         # Cleaning of the content
         content = item['content']
         content = ''.join(content)  # get string from list of strings
         dec_content = content.encode('ascii', 'ignore').decode('ascii')
-        item['content'] = " ".join(dec_content.split()) #remove extensive white spaces.
+        content = " ".join(dec_content.split()) #remove extensive white spaces.
+        polarity, subjectivity = helpers.get_sentiment(content)
+        datetime = pd.to_datetime(
+            self._convert_datetime(item['datetime'][0]))
+        ticker = item['ticker']
 
-        line = json.dumps(dict(item)) + "\n"
-        self.file.write(line)
+        # print(item['datetime'])
+        # print(datetime)
+
+        dict = {'ticker':ticker, 'datetime':datetime, 'content': content, 'polarity':polarity, 'subjectivity':subjectivity}
+        self.news_df = pd.concat([self.news_df, pd.DataFrame(dict, index=[0])])
         return item
 
+
+    def _convert_datetime(self, dt_string):
+        '''
+        There are two formats of date time data on Seeking Alpha:
+            - Oct. 27, 2015, 4:58 PM - for news from previous years
+            - Thu, Sep. 7, 12:44 PM - for this year news
+        So this methid tries to convert datetime data point to one of the formats and returns the succesful one as pandas Timestamp.
+        '''
+
+        try:
+            dt = pd.to_datetime(dt_string, format='%a, %b. %d, %Y, %H:%M %p')
+        except ValueError:
+            try:
+                dt = pd.to_datetime(dt_string, format='%b. %d, %Y, %H:%M %p')
+            except ValueError:
+                try:
+                    dt = pd.to_datetime(dt_string, format='%a, %b. %d, %H:%M %p')
+                    dt = dt.replace(year=2017)
+                except ValueError:
+                    print(dt_string) # need to differentiate between today and yesterday
+                    dt = pd.to_datetime(date.today())
+        return dt
+
     def close_spider(self, spider):
-        self.file.close()
-
-
+        self.news_df = self.news_df.reset_index()
+        self.news_df.to_pickle(self.filepath)
 
 
 class NewsToCorpus(object):

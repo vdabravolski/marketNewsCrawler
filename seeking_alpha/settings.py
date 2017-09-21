@@ -45,8 +45,8 @@ EXTENSIONS = {
 }
 
 ITEM_PIPELINES = {
-    'seeking_alpha.pipelines.NewsCleaning': 300,
-    'seeking_alpha.pipelines.NewsToCorpus': 400,
+    'seeking_alpha.pipelines.NewsToPandas': 300,
+#    'seeking_alpha.pipelines.NewsToCorpus': 400,
 #    'seeking_alpha.pipelines.JsonWriterPipeline': 310,
 }
 

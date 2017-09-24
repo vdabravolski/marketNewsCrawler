@@ -8,7 +8,7 @@
 import pickle
 import pandas as pd
 import helpers
-from datetime import date
+from datetime import date, timedelta
 import json
 
 
@@ -29,9 +29,6 @@ class NewsToPandas(object):  # Pipeline to clean news from HTML
         datetime = pd.to_datetime(
             self._convert_datetime(item['datetime'][0]))
         ticker = item['ticker']
-
-        # print(item['datetime'])
-        # print(datetime)
 
         dict = {'ticker':ticker, 'datetime':datetime, 'content': content, 'polarity':polarity, 'subjectivity':subjectivity}
         self.news_df = pd.concat([self.news_df, pd.DataFrame(dict, index=[0])])
@@ -56,12 +53,25 @@ class NewsToPandas(object):  # Pipeline to clean news from HTML
                     dt = pd.to_datetime(dt_string, format='%a, %b. %d, %H:%M %p')
                     dt = dt.replace(year=2017)
                 except ValueError:
-                    print(dt_string) # need to differentiate between today and yesterday
-                    dt = pd.to_datetime(date.today())
+                    try:
+                        dt = pd.to_datetime(dt_string, format='%a, %b %d, %H:%M %p')
+                        dt = dt.replace(year=2017)
+                    except ValueError:
+                        try:
+                            dt = pd.to_datetime(dt_string, format='%b %d, %Y, %H:%M %p')
+                        except:
+                            if ('today' in dt_string.lower()):
+                                dt =pd.to_datetime(date.today())
+                            elif ('yesterday' in dt_string.lower()):
+                                dt = pd.to_datetime(date.today()-timedelta(1))
+                            else:
+                                print(dt_string)  # need to differentiate between today and yesterday
+                                dt = date.today()
+
         return dt
 
     def close_spider(self, spider):
-        self.news_df = self.news_df.reset_index()
+        self.news_df = self.news_df.reset_index(drop=True)
         self.news_df.to_pickle(self.filepath)
 
 
